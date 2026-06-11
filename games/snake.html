@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake — Hockerill Hub 2.0</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 1rem 2rem;
+    }
+
+    .game-meta {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .stat-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.4rem 1rem;
+      text-align: center;
+      min-width: 90px;
+      box-shadow: var(--shadow);
+    }
+
+    .stat-box .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .stat-box .value {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--navy);
+    }
+
+    #gameCanvas {
+      border: 3px solid var(--navy);
+      border-radius: var(--radius-sm);
+      display: block;
+      background: #f0fdf4;
+      cursor: pointer;
+      touch-action: none;
+      max-width: 100%;
+    }
+
+    .game-message {
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .game-message strong { color: var(--navy); }
+
+    /* Mobile d-pad */
+    .dpad {
+      display: none;
+      margin-top: 1.25rem;
+      user-select: none;
+    }
+
+    .dpad-row {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .dpad-btn {
+      width: 52px;
+      height: 52px;
+      background: var(--navy);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s, transform 0.1s;
+    }
+
+    .dpad-btn:active {
+      background: var(--navy-dark);
+      transform: scale(0.93);
+    }
+
+    .dpad-spacer { width: 52px; height: 52px; }
+
+    @media (max-width: 700px) { .dpad { display: block; } }
+
+    /* Name entry overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .overlay.hidden { display: none; }
+
+    .overlay-box {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 2rem;
+      width: min(90%, 360px);
+      text-align: center;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+    }
+
+    .overlay-box h2 { font-size: 1.4rem; color: var(--navy); margin-bottom: 0.5rem; }
+    .overlay-box .final-score { font-size: 2rem; font-weight: 800; color: var(--green); margin: 0.5rem 0 1rem; }
+    .overlay-box p { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+    .name-input {
+      width: 100%;
+      padding: 0.6rem 0.9rem;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .name-input:focus { border-color: var(--navy); }
+
+    .btn-submit {
+      width: 100%;
+      padding: 0.65rem;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-bottom: 0.5rem;
+      transition: background 0.15s;
+    }
+
+    .btn-submit:hover { background: var(--green-hover); }
+
+    .btn-skip {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="nav-container">
+    <a href="../index.html" class="nav-back">&#8592; Back to Hub</a>
+    <a href="../index.html" class="nav-brand">Hockerill <span>Hub 2.0</span></a>
+    <ul class="nav-links"><li><a href="../index.html">Home</a></li></ul>
+  </div>
+</nav>
+
+<main class="game-area">
+
+  <div class="game-meta">
+    <div class="stat-box">
+      <div class="label">Score</div>
+      <div class="value" id="scoreDisplay">0</div>
+    </div>
+    <div class="stat-box">
+      <div class="label">Best</div>
+      <div class="value" id="bestDisplay">0</div>
+    </div>
+    <div class="stat-box">
+      <div class="label">Level</div>
+      <div class="value" id="levelDisplay">1</div>
+    </div>
+  </div>
+
+  <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+  <div class="game-message" id="gameMessage">
+    <strong>Click or press Space</strong> to start &nbsp;|&nbsp; Arrow keys / WASD to move
+  </div>
+
+  <div class="dpad">
+    <div class="dpad-row"><div class="dpad-spacer"></div><button class="dpad-btn" data-dir="up">▲</button><div class="dpad-spacer"></div></div>
+    <div class="dpad-row">
+      <button class="dpad-btn" data-dir="left">◀</button>
+      <div class="dpad-spacer"></div>
+      <button class="dpad-btn" data-dir="right">▶</button>
+    </div>
+    <div class="dpad-row"><div class="dpad-spacer"></div><button class="dpad-btn" data-dir="down">▼</button><div class="dpad-spacer"></div></div>
+  </div>
+
+  <div class="leaderboard" id="leaderboard">
+    <h3>🏆 High Scores</h3>
+    <div id="lbContent"></div>
+  </div>
+
+</main>
+
+<!-- Game Over overlay -->
+<div class="overlay hidden" id="gameOverOverlay">
+  <div class="overlay-box">
+    <h2>Game Over!</h2>
+    <div class="final-score" id="overlayScore">0</div>
+    <p>Enter your initials to save your score:</p>
+    <input class="name-input" id="nameInput" maxlength="3" placeholder="AAA" autocomplete="off">
+    <button class="btn-submit" id="saveName">Save Score</button>
+    <button class="btn-skip" id="skipSave">Skip</button>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p>Hockerill Hub 2.0 — Snake</p>
+</footer>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+const CELL  = 20;
+const COLS  = canvas.width  / CELL;
+const ROWS  = canvas.height / CELL;
+const LB_KEY = 'hh2-snake-lb';
+
+// Game state
+let snake, food, bonusFood, dir, nextDir, score, level, speed;
+let gameRunning = false, gameStarted = false;
+let loopTimer = null;
+
+// Touch tracking
+let touchStartX = 0, touchStartY = 0;
+
+// ── Leaderboard ──────────────────────────────────────────
+function loadLB() {
+  try { return JSON.parse(localStorage.getItem(LB_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveLB(entries) {
+  localStorage.setItem(LB_KEY, JSON.stringify(entries));
+}
+
+function addToLB(name, score) {
+  const entries = loadLB();
+  entries.push({ name: name.toUpperCase().slice(0,3) || 'AAA', score, date: new Date().toLocaleDateString('en-GB', {day:'numeric', month:'short'}) });
+  entries.sort((a, b) => b.score - a.score);
+  const top = entries.slice(0, 10);
+  saveLB(top);
+  renderLB();
+}
+
+function renderLB() {
+  const entries = loadLB();
+  const el = document.getElementById('lbContent');
+  if (!entries.length) {
+    el.innerHTML = '<p class="lb-empty">No scores yet — be the first!</p>';
+    return;
+  }
+  const best = entries[0].score;
+  document.getElementById('bestDisplay').textContent = best;
+  el.innerHTML = `<ol>${entries.slice(0,10).map(e =>
+    `<li><span class="lb-name">${e.name}</span><span class="lb-score">${e.score}</span><span class="lb-date">${e.date}</span></li>`
+  ).join('')}</ol>`;
+}
+
+// ── Game logic ───────────────────────────────────────────
+function calcSpeed(lvl) { return Math.max(60, 160 - (lvl - 1) * 18); }
+
+function spawnFood(exclude) {
+  let pos;
+  do {
+    pos = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+  } while (exclude.some(s => s.x === pos.x && s.y === pos.y));
+  return pos;
+}
+
+function initGame() {
+  const mid = Math.floor(COLS / 2);
+  snake   = [{ x: mid, y: 10 }, { x: mid - 1, y: 10 }, { x: mid - 2, y: 10 }];
+  dir     = { x: 1, y: 0 };
+  nextDir = { x: 1, y: 0 };
+  score   = 0;
+  level   = 1;
+  speed   = calcSpeed(1);
+  bonusFood = null;
+  food    = spawnFood(snake);
+  updateUI();
+}
+
+function updateUI() {
+  document.getElementById('scoreDisplay').textContent = score;
+  document.getElementById('levelDisplay').textContent = level;
+}
+
+let bonusTimer = null;
+
+function step() {
+  dir = { ...nextDir };
+
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+  // Wall collision
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+    endGame(); return;
+  }
+  // Self collision
+  if (snake.some(s => s.x === head.x && s.y === head.y)) {
+    endGame(); return;
+  }
+
+  snake.unshift(head);
+
+  let ate = false;
+  if (head.x === food.x && head.y === food.y) {
+    score += level * 10;
+    ate = true;
+    food = spawnFood(snake);
+    if (score > 0 && score % 100 === 0) {
+      level++;
+      speed = calcSpeed(level);
+      restartLoop();
+    }
+    // 20% chance bonus food
+    if (!bonusFood && Math.random() < 0.2) {
+      bonusFood = spawnFood(snake);
+      if (bonusTimer) clearTimeout(bonusTimer);
+      bonusTimer = setTimeout(() => { bonusFood = null; draw(); }, 5000);
+    }
+  } else if (bonusFood && head.x === bonusFood.x && head.y === bonusFood.y) {
+    score += level * 50;
+    bonusFood = null;
+    if (bonusTimer) clearTimeout(bonusTimer);
+    ate = true;
+  }
+
+  if (!ate) snake.pop();
+
+  updateUI();
+  draw();
+}
+
+function endGame() {
+  gameRunning = false;
+  clearInterval(loopTimer);
+  setMessage('');
+  document.getElementById('overlayScore').textContent = score;
+  document.getElementById('nameInput').value = '';
+  document.getElementById('gameOverOverlay').classList.remove('hidden');
+  document.getElementById('nameInput').focus();
+}
+
+function startGame() {
+  initGame();
+  gameRunning = true;
+  gameStarted = true;
+  setMessage('Arrow keys / WASD to move &nbsp;|&nbsp; <strong>Space</strong> to pause');
+  draw();
+  restartLoop();
+}
+
+function restartLoop() {
+  clearInterval(loopTimer);
+  loopTimer = setInterval(step, speed);
+}
+
+let paused = false;
+function togglePause() {
+  if (!gameStarted || !gameRunning) return;
+  paused = !paused;
+  if (paused) {
+    clearInterval(loopTimer);
+    setMessage('<strong>Paused</strong> — press Space to resume');
+  } else {
+    restartLoop();
+    setMessage('Arrow keys / WASD to move &nbsp;|&nbsp; <strong>Space</strong> to pause');
+  }
+}
+
+function setMessage(html) {
+  document.getElementById('gameMessage').innerHTML = html || '&nbsp;';
+}
+
+// ── Drawing ──────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Grid dots
+  ctx.fillStyle = '#d1fae5';
+  for (let x = 0; x < COLS; x++) {
+    for (let y = 0; y < ROWS; y++) {
+      ctx.beginPath();
+      ctx.arc(x * CELL + CELL / 2, y * CELL + CELL / 2, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Food
+  drawFood(food.x, food.y, '#ef4444', '#fca5a5', false);
+
+  // Bonus food
+  if (bonusFood) {
+    drawFood(bonusFood.x, bonusFood.y, '#f59e0b', '#fde68a', true);
+  }
+
+  // Snake
+  snake.forEach((seg, i) => {
+    const t = i / snake.length;
+    const g = Math.round(120 + t * 80);
+    const b = Math.round(50 + t * 40);
+    ctx.fillStyle = i === 0 ? '#15803d' : `rgb(22, ${g}, ${b})`;
+    const pad = i === 0 ? 1 : 2;
+    roundRect(ctx, seg.x * CELL + pad, seg.y * CELL + pad, CELL - pad * 2, CELL - pad * 2, i === 0 ? 5 : 4);
+    ctx.fill();
+  });
+
+  // Eyes on head
+  if (snake.length > 0) drawEyes(snake[0], dir);
+
+  // Start screen
+  if (!gameStarted) {
+    ctx.fillStyle = 'rgba(30,58,95,0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('SNAKE', canvas.width / 2, canvas.height / 2 - 16);
+    ctx.font = '15px -apple-system, sans-serif';
+    ctx.fillStyle = '#bfdbfe';
+    ctx.fillText('Click or press Space to start', canvas.width / 2, canvas.height / 2 + 16);
+    ctx.textAlign = 'left';
+  }
+}
+
+function drawFood(fx, fy, color, shine, star) {
+  const cx = fx * CELL + CELL / 2;
+  const cy = fy * CELL + CELL / 2;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, CELL / 2 - 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = shine;
+  ctx.beginPath();
+  ctx.arc(cx - 2, cy - 2, 3, 0, Math.PI * 2);
+  ctx.fill();
+  if (star) {
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('★', cx, cy + 4);
+    ctx.textAlign = 'left';
+  }
+}
+
+function drawEyes(head, dir) {
+  const cx = head.x * CELL + CELL / 2;
+  const cy = head.y * CELL + CELL / 2;
+  const eyeOffset = 4;
+  let e1, e2;
+  if (Math.abs(dir.x) > 0) {
+    e1 = { x: cx + dir.x * 3, y: cy - eyeOffset };
+    e2 = { x: cx + dir.x * 3, y: cy + eyeOffset };
+  } else {
+    e1 = { x: cx - eyeOffset, y: cy + dir.y * 3 };
+    e2 = { x: cx + eyeOffset, y: cy + dir.y * 3 };
+  }
+  ctx.fillStyle = '#fff';
+  [e1, e2].forEach(e => {
+    ctx.beginPath(); ctx.arc(e.x, e.y, 3, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.fillStyle = '#000';
+  [e1, e2].forEach(e => {
+    ctx.beginPath(); ctx.arc(e.x + dir.x, e.y + dir.y, 1.5, 0, Math.PI * 2); ctx.fill();
+  });
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Input ────────────────────────────────────────────────
+const DIRS = {
+  ArrowUp:    { x: 0, y: -1 }, w: { x: 0, y: -1 },
+  ArrowDown:  { x: 0, y:  1 }, s: { x: 0, y:  1 },
+  ArrowLeft:  { x: -1, y: 0 }, a: { x: -1, y: 0 },
+  ArrowRight: { x: 1,  y: 0 }, d: { x: 1,  y: 0 },
+};
+
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.code === 'Space') {
+    e.preventDefault();
+    if (!gameStarted || !gameRunning) { startGame(); return; }
+    togglePause();
+    return;
+  }
+  const d = DIRS[e.key] || DIRS[e.key.toLowerCase()];
+  if (d) {
+    e.preventDefault();
+    if (!gameStarted) { startGame(); return; }
+    if (d.x !== -dir.x || d.y !== -dir.y) nextDir = d;
+  }
+});
+
+canvas.addEventListener('click', () => {
+  if (!gameStarted || !gameRunning) startGame();
+});
+
+// D-pad buttons
+document.querySelectorAll('.dpad-btn').forEach(btn => {
+  const map = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+  btn.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (!gameStarted || !gameRunning) { startGame(); return; }
+    const d = map[btn.dataset.dir];
+    if (d && (d.x !== -dir.x || d.y !== -dir.y)) nextDir = d;
+  }, { passive: false });
+  btn.addEventListener('click', () => {
+    if (!gameStarted || !gameRunning) { startGame(); return; }
+    const d = map[btn.dataset.dir];
+    if (d && (d.x !== -dir.x || d.y !== -dir.y)) nextDir = d;
+  });
+});
+
+// Swipe to change direction
+canvas.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+canvas.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if (!gameStarted || !gameRunning) { startGame(); return; }
+  if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+  let d;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    d = dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+  } else {
+    d = dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+  }
+  if (d.x !== -dir.x || d.y !== -dir.y) nextDir = d;
+}, { passive: true });
+
+// ── Overlay ──────────────────────────────────────────────
+document.getElementById('saveName').addEventListener('click', () => {
+  const name = document.getElementById('nameInput').value.trim() || 'AAA';
+  addToLB(name, score);
+  document.getElementById('gameOverOverlay').classList.add('hidden');
+  startGame();
+});
+
+document.getElementById('skipSave').addEventListener('click', () => {
+  document.getElementById('gameOverOverlay').classList.add('hidden');
+  startGame();
+});
+
+document.getElementById('nameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('saveName').click();
+});
+
+// ── Init ─────────────────────────────────────────────────
+initGame();
+draw();
+renderLB();
+</script>
+</body>
+</html>
