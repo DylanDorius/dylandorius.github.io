@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invigilator Chase — Hockerill Hub 2.0</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1rem 1rem 2.5rem;
+      gap: 0.75rem;
+    }
+
+    .hud {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .hud-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.4rem 1rem;
+      text-align: center;
+      min-width: 88px;
+      box-shadow: var(--shadow);
+    }
+
+    .hud-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .hud-val   { font-size: 1.35rem; font-weight: 800; color: var(--navy); }
+    .hud-val.danger { color: #dc2626; }
+
+    #gameCanvas {
+      border: 3px solid var(--navy);
+      border-radius: 8px;
+      display: block;
+      background: #f0fdf4;
+      touch-action: none;
+      max-width: 100%;
+      cursor: none;
+    }
+
+    /* Mobile d-pad */
+    .dpad {
+      display: none;
+      user-select: none;
+      margin-top: 0.5rem;
+    }
+
+    .dpad-row { display: flex; justify-content: center; gap: 4px; }
+
+    .dpad-btn {
+      width: 60px; height: 60px;
+      background: var(--navy); color: #fff;
+      border: none; border-radius: 12px;
+      font-size: 1.3rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s, transform 0.1s;
+    }
+
+    .dpad-btn:active { background: var(--navy-dark); transform: scale(0.91); }
+    .dpad-spacer { width: 60px; height: 60px; }
+
+    @media (max-width: 700px) { .dpad { display: block; } }
+
+    /* Overlay */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .overlay.hidden { display: none; }
+
+    .ov-box {
+      background: var(--surface); border-radius: var(--radius);
+      padding: 2rem; width: min(92%, 380px); text-align: center;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+    }
+
+    .ov-img {
+      width: 80px; height: 80px; border-radius: 50%;
+      object-fit: cover; border: 4px solid #dc2626;
+      display: block; margin: 0 auto 0.75rem;
+      animation: wiggle 0.4s ease infinite alternate;
+    }
+
+    @keyframes wiggle {
+      from { transform: rotate(-6deg); }
+      to   { transform: rotate( 6deg); }
+    }
+
+    .ov-box h2     { font-size: 1.5rem; font-weight: 800; color: #dc2626; margin-bottom: 0.25rem; }
+    .ov-box .ov-sub { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; }
+
+    .ov-scores {
+      display: flex; gap: 1rem; justify-content: center; margin-bottom: 1.25rem;
+    }
+
+    .ov-stat { background: var(--bg); border-radius: 8px; padding: 0.5rem 1rem; }
+    .ov-stat .sv { font-size: 1.4rem; font-weight: 800; color: var(--navy); }
+    .ov-stat .sl { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+
+    .name-input {
+      width: 100%; padding: 0.6rem; border: 2px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 1rem; text-align: center;
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.6rem;
+      outline: none; transition: border-color 0.15s;
+    }
+    .name-input:focus { border-color: var(--navy); }
+
+    .btn-save {
+      width: 100%; padding: 0.65rem; background: var(--green); color: #fff;
+      border: none; border-radius: var(--radius-sm); font-size: 0.95rem;
+      font-weight: 700; cursor: pointer; margin-bottom: 0.4rem;
+      transition: background 0.15s;
+    }
+    .btn-save:hover { background: var(--green-hover); }
+    .btn-skip-link { background: none; border: none; color: var(--text-muted); font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="nav-container">
+    <a href="../index.html" class="nav-back">&#8592; Back to Hub</a>
+    <a href="../index.html" class="nav-brand">Hockerill <span>Hub 2.0</span></a>
+    <ul class="nav-links"><li><a href="../index.html">Home</a></li></ul>
+  </div>
+</nav>
+
+<main class="game-area">
+
+  <div class="hud">
+    <div class="hud-box"><div class="hud-label">Time</div><div class="hud-val" id="hudTime">0.0s</div></div>
+    <div class="hud-box"><div class="hud-label">Coins</div><div class="hud-val" id="hudCoins">0</div></div>
+    <div class="hud-box"><div class="hud-label">Score</div><div class="hud-val" id="hudScore">0</div></div>
+    <div class="hud-box"><div class="hud-label">Invigilators</div><div class="hud-val danger" id="hudInv">1</div></div>
+  </div>
+
+  <canvas id="gameCanvas" width="580" height="460"></canvas>
+
+  <div class="dpad">
+    <div class="dpad-row"><div class="dpad-spacer"></div><button class="dpad-btn" data-dir="up">▲</button><div class="dpad-spacer"></div></div>
+    <div class="dpad-row">
+      <button class="dpad-btn" data-dir="left">◀</button>
+      <div class="dpad-spacer"></div>
+      <button class="dpad-btn" data-dir="right">▶</button>
+    </div>
+    <div class="dpad-row"><div class="dpad-spacer"></div><button class="dpad-btn" data-dir="down">▼</button><div class="dpad-spacer"></div></div>
+  </div>
+
+  <div class="leaderboard" style="max-width:480px">
+    <h3>🏃 Survival Records</h3>
+    <div id="lbContent"></div>
+  </div>
+
+</main>
+
+<!-- Game Over overlay -->
+<div class="overlay hidden" id="goOverlay">
+  <div class="ov-box">
+    <img src="invigilator.jpeg" class="ov-img" alt="Invigilator" id="ovImg">
+    <h2>CAUGHT!</h2>
+    <div class="ov-sub" id="ovSub">The invigilator has caught you cheating.</div>
+    <div class="ov-scores">
+      <div class="ov-stat"><div class="sv" id="ovTime">0s</div><div class="sl">Survived</div></div>
+      <div class="ov-stat"><div class="sv" id="ovCoins">0</div><div class="sl">Coins</div></div>
+      <div class="ov-stat"><div class="sv" id="ovScore">0</div><div class="sl">Score</div></div>
+    </div>
+    <input class="name-input" id="goName" maxlength="3" placeholder="AAA" autocomplete="off">
+    <button class="btn-save" id="goSave">Save Score</button>
+    <button class="btn-skip-link" id="goSkip">Skip</button>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p>Hockerill Hub 2.0 — Invigilator Chase</p>
+</footer>
+
+<script>
+const canvas  = document.getElementById('gameCanvas');
+const ctx     = canvas.getContext('2d');
+const LB_KEY  = 'hh2-inv-lb';
+
+// ── Load invigilator image ────────────────────────────────
+const invImg = new Image();
+invImg.src = 'invigilator.jpeg';
+
+// ── Constants ─────────────────────────────────────────────
+const W = canvas.width, H = canvas.height;
+const PLAYER_R  = 14;
+const INV_W     = 48, INV_H = 56;
+const COIN_R    = 9;
+const WALL_PAD  = 20;
+
+// ── State ─────────────────────────────────────────────────
+let player, invigilators, coins, score, timeAlive, coinCount;
+let gameRunning = false, gameStarted = false;
+let lastTs = null, rafId = null;
+let keys = {};
+
+// Mobile d-pad state
+let dpad = { up: false, down: false, left: false, right: false };
+
+function initGame() {
+  player = { x: W / 2, y: H / 2, speed: 190 };
+  invigilators = [mkInv()];
+  coins = [];
+  score = 0;
+  timeAlive = 0;
+  coinCount = 0;
+  for (let i = 0; i < 10; i++) spawnCoin();
+  updateHUD();
+}
+
+function mkInv() {
+  // Spawn at a random edge, away from player center
+  const edge = Math.floor(Math.random() * 4);
+  let x, y;
+  if (edge === 0) { x = Math.random() * W; y = -INV_H; }
+  else if (edge === 1) { x = W + INV_W; y = Math.random() * H; }
+  else if (edge === 2) { x = Math.random() * W; y = H + INV_H; }
+  else { x = -INV_W; y = Math.random() * H; }
+  const baseSpeed = 68 + invigilators.length * 8;
+  return { x, y, speed: baseSpeed };
+}
+
+function spawnCoin() {
+  let x, y, tries = 0;
+  do {
+    x = WALL_PAD + COIN_R + Math.random() * (W - (WALL_PAD + COIN_R) * 2);
+    y = WALL_PAD + COIN_R + Math.random() * (H - (WALL_PAD + COIN_R) * 2);
+    tries++;
+  } while (tries < 30 && invigilators.some(inv => dist(x, y, inv.x, inv.y) < 80));
+  coins.push({ x, y, pulse: Math.random() * Math.PI * 2 });
+}
+
+function dist(ax, ay, bx, by) {
+  return Math.sqrt((ax - bx) ** 2 + (ay - by) ** 2);
+}
+
+// ── Game loop ─────────────────────────────────────────────
+function loop(ts) {
+  if (!gameRunning) return;
+  const dt = lastTs == null ? 0 : Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+
+  update(dt);
+  draw();
+  rafId = requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  timeAlive += dt;
+
+  // ── Player movement ──
+  let dx = 0, dy = 0;
+  if (keys['ArrowLeft']  || keys['a'] || dpad.left)  dx -= 1;
+  if (keys['ArrowRight'] || keys['d'] || dpad.right) dx += 1;
+  if (keys['ArrowUp']    || keys['w'] || dpad.up)    dy -= 1;
+  if (keys['ArrowDown']  || keys['s'] || dpad.down)  dy += 1;
+
+  if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+  player.x = Math.max(WALL_PAD + PLAYER_R, Math.min(W - WALL_PAD - PLAYER_R, player.x + dx * player.speed * dt));
+  player.y = Math.max(WALL_PAD + PLAYER_R, Math.min(H - WALL_PAD - PLAYER_R, player.y + dy * player.speed * dt));
+
+  // ── Invigilator movement ──
+  invigilators.forEach(inv => {
+    const tx = player.x - INV_W / 2;
+    const ty = player.y - INV_H / 2;
+    const d  = dist(inv.x, inv.y, tx, ty);
+    if (d > 1) {
+      // Add slight wobble for character
+      const wobbleX = Math.sin(timeAlive * 3 + inv.speed) * 0.08;
+      const wobbleY = Math.cos(timeAlive * 2 + inv.speed) * 0.06;
+      inv.x += ((tx - inv.x) / d + wobbleX) * inv.speed * dt;
+      inv.y += ((ty - inv.y) / d + wobbleY) * inv.speed * dt;
+    }
+  });
+
+  // ── Coin collection ──
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+    if (dist(player.x, player.y, c.x, c.y) < PLAYER_R + COIN_R) {
+      coins.splice(i, 1);
+      coinCount++;
+      score += 50;
+      spawnCoin();
+    }
+    c.pulse += dt * 3;
+  }
+
+  // ── Spawn more invigilators over time ──
+  const expectedInv = 1 + Math.floor(timeAlive / 15);
+  while (invigilators.length < Math.min(expectedInv, 6)) {
+    invigilators.push(mkInv());
+  }
+
+  // ── Score from time ──
+  score = Math.floor(timeAlive * 8) + coinCount * 50;
+
+  // ── Collision with invigilator ──
+  for (const inv of invigilators) {
+    if (dist(player.x, player.y, inv.x + INV_W / 2, inv.y + INV_H / 2) < PLAYER_R + INV_W * 0.38) {
+      endGame();
+      return;
+    }
+  }
+
+  updateHUD();
+}
+
+function updateHUD() {
+  document.getElementById('hudTime').textContent  = timeAlive.toFixed(1) + 's';
+  document.getElementById('hudCoins').textContent = coinCount;
+  document.getElementById('hudScore').textContent = score;
+  document.getElementById('hudInv').textContent   = invigilators.length;
+}
+
+// ── Drawing ───────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid (exam hall feel)
+  ctx.fillStyle = '#f0fdf4';
+  ctx.fillRect(0, 0, W, H);
+
+  // Desk grid lines
+  ctx.strokeStyle = '#d1fae5';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 60) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 60) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Border walls
+  ctx.strokeStyle = '#6b7280';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(WALL_PAD, WALL_PAD, W - WALL_PAD * 2, H - WALL_PAD * 2);
+
+  // Coins
+  coins.forEach(c => {
+    const glow = 0.5 + 0.5 * Math.sin(c.pulse);
+    const r    = COIN_R + glow * 2;
+    ctx.shadowColor  = '#fbbf24';
+    ctx.shadowBlur   = 8 * glow;
+    ctx.fillStyle    = `hsl(45, 100%, ${55 + glow * 10}%)`;
+    ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur   = 0;
+    ctx.fillStyle    = '#92400e';
+    ctx.font         = `bold ${Math.round(r * 1.1)}px sans-serif`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('£', c.x, c.y);
+  });
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+  // Invigilators
+  invigilators.forEach(inv => {
+    if (invImg.complete && invImg.naturalWidth) {
+      // Red glow around image
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur  = 14;
+      ctx.save();
+      // Clip to rounded rect
+      roundedClip(ctx, inv.x, inv.y, INV_W, INV_H, 8);
+      ctx.drawImage(invImg, inv.x, inv.y, INV_W, INV_H);
+      ctx.restore();
+      ctx.shadowBlur = 0;
+      // Red border
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth   = 2;
+      roundedRect(ctx, inv.x, inv.y, INV_W, INV_H, 8);
+      ctx.stroke();
+    } else {
+      // Fallback
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.arc(inv.x + INV_W/2, inv.y + INV_H/2, INV_W/2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  // Player (student — blue circle with a backpack)
+  drawPlayer(player.x, player.y);
+
+  // Start screen
+  if (!gameStarted) {
+    ctx.fillStyle = 'rgba(30,58,95,0.78)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('INVIGILATOR CHASE', W / 2, H / 2 - 50);
+    if (invImg.complete) {
+      ctx.save();
+      roundedClip(ctx, W/2 - 30, H/2 - 40, 60, 70, 8);
+      ctx.drawImage(invImg, W/2 - 30, H/2 - 40, 60, 70);
+      ctx.restore();
+      ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3;
+      roundedRect(ctx, W/2 - 30, H/2 - 40, 60, 70, 8);
+      ctx.stroke();
+    }
+    ctx.font = '15px -apple-system, sans-serif';
+    ctx.fillStyle = '#bfdbfe';
+    ctx.fillText('Collect £ coins. Avoid the invigilator!', W / 2, H / 2 + 44);
+    ctx.fillText('Click or press any key to start', W / 2, H / 2 + 66);
+    ctx.textAlign = 'left';
+  }
+}
+
+function drawPlayer(x, y) {
+  // Body
+  ctx.fillStyle = '#2563eb';
+  ctx.beginPath(); ctx.arc(x, y, PLAYER_R, 0, Math.PI * 2); ctx.fill();
+  // Shine
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath(); ctx.arc(x - 4, y - 4, 5, 0, Math.PI * 2); ctx.fill();
+  // Face
+  ctx.fillStyle = '#fde68a';
+  ctx.beginPath(); ctx.arc(x, y - 2, 7, 0, Math.PI * 2); ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath(); ctx.arc(x - 2.5, y - 3, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 2.5, y - 3, 1.5, 0, Math.PI * 2); ctx.fill();
+  // Panicked expression when invigilators are close
+  const closest = Math.min(...invigilators.map(inv => dist(x, y, inv.x + INV_W/2, inv.y + INV_H/2)));
+  if (closest < 100) {
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y + 1, 2.5, Math.PI * 0.1, Math.PI * 0.9); ctx.stroke();
+  } else {
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y + 1, 2.5, Math.PI * 0.2, Math.PI * 0.8); ctx.stroke();
+  }
+}
+
+function roundedClip(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.clip();
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Start / End ───────────────────────────────────────────
+function startGame() {
+  initGame();
+  gameRunning  = true;
+  gameStarted  = true;
+  lastTs       = null;
+  rafId        = requestAnimationFrame(loop);
+}
+
+function endGame() {
+  gameRunning = false;
+  cancelAnimationFrame(rafId);
+
+  document.getElementById('ovTime').textContent  = timeAlive.toFixed(1) + 's';
+  document.getElementById('ovCoins').textContent = coinCount;
+  document.getElementById('ovScore').textContent = score;
+  const subs = [
+    'The invigilator has caught you cheating.',
+    'You have been removed from the examination.',
+    '"Please put down your pen." — The Invigilator',
+    'No phones, no notes, no escaping.',
+    'You have been reported to the exam board.',
+  ];
+  document.getElementById('ovSub').textContent = subs[Math.floor(Math.random() * subs.length)];
+  document.getElementById('goName').value = '';
+  document.getElementById('goOverlay').classList.remove('hidden');
+  document.getElementById('goName').focus();
+}
+
+// ── Leaderboard ───────────────────────────────────────────
+function loadLB() {
+  try { return JSON.parse(localStorage.getItem(LB_KEY) || '[]'); } catch { return []; }
+}
+
+function saveLB(name, sc, t) {
+  const lb = loadLB();
+  lb.push({ name: name.toUpperCase().slice(0,3) || 'AAA', score: sc, time: t.toFixed(1), date: new Date().toLocaleDateString('en-GB', {day:'numeric',month:'short'}) });
+  lb.sort((a,b) => b.score - a.score);
+  localStorage.setItem(LB_KEY, JSON.stringify(lb.slice(0,10)));
+  renderLB();
+}
+
+function renderLB() {
+  const lb = loadLB();
+  const el = document.getElementById('lbContent');
+  if (!lb.length) { el.innerHTML = '<p class="lb-empty">No survivors yet!</p>'; return; }
+  el.innerHTML = `<ol>${lb.slice(0,10).map(e =>
+    `<li><span class="lb-name">${e.name}</span><span class="lb-score">${e.score} <span style="font-size:0.7rem;color:var(--text-muted)">(${e.time}s)</span></span><span class="lb-date">${e.date}</span></li>`
+  ).join('')}</ol>`;
+}
+
+// ── Input ─────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (!gameStarted || !gameRunning) { startGame(); }
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+canvas.addEventListener('click', () => { if (!gameStarted || !gameRunning) startGame(); });
+
+// Touch swipe
+let tx = 0, ty = 0;
+canvas.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchend',   e => { if (!gameStarted || !gameRunning) { startGame(); } }, { passive: true });
+
+// D-pad
+document.querySelectorAll('.dpad-btn').forEach(btn => {
+  const dir = btn.dataset.dir;
+  btn.addEventListener('touchstart', e => { e.preventDefault(); dpad[dir] = true; if (!gameStarted || !gameRunning) startGame(); }, { passive: false });
+  btn.addEventListener('touchend',   e => { e.preventDefault(); dpad[dir] = false; }, { passive: false });
+  btn.addEventListener('mousedown',  () => { dpad[dir] = true;  if (!gameStarted || !gameRunning) startGame(); });
+  btn.addEventListener('mouseup',    () => { dpad[dir] = false; });
+  btn.addEventListener('mouseleave', () => { dpad[dir] = false; });
+});
+
+// Overlay buttons
+document.getElementById('goSave').addEventListener('click', () => {
+  const name = document.getElementById('goName').value.trim() || 'AAA';
+  saveLB(name, score, timeAlive);
+  document.getElementById('goOverlay').classList.add('hidden');
+  startGame();
+});
+document.getElementById('goSkip').addEventListener('click', () => {
+  document.getElementById('goOverlay').classList.add('hidden');
+  startGame();
+});
+document.getElementById('goName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('goSave').click();
+});
+
+// ── Init ──────────────────────────────────────────────────
+initGame();
+invImg.onload = () => draw();
+draw();
+renderLB();
+</script>
+</body>
+</html>
