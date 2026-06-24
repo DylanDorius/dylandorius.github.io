@@ -114,6 +114,156 @@
   <p>Hockerill Hub 2.0 &mdash; Made for students &bull; Scores saved in your browser</p>
 </footer>
 
+<!-- Dev access bar -->
+<div id="devBar" style="background:#0d1b2e;padding:10px;text-align:center">
+  <input type="password" id="devCodeInput" maxlength="10"
+    placeholder="· · · · · · ·"
+    style="background:transparent;border:none;border-bottom:1px solid #2d4a6e;color:#334155;
+           text-align:center;letter-spacing:0.3em;font-size:0.8rem;width:120px;outline:none;
+           padding:4px 0;caret-color:#2d4a6e"
+    autocomplete="off" spellcheck="false">
+  <div id="devMsg" style="font-size:0.7rem;color:#dc2626;margin-top:4px;min-height:16px"></div>
+</div>
+
+<!-- Dev Panel (hidden) -->
+<div id="devPanel" style="display:none;background:#0d1b2e;border-top:2px solid #1e3a5f;padding:2rem 1.25rem 2.5rem">
+  <div style="max-width:640px;margin:0 auto">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+      <h2 style="color:#93c5fd;font-size:1.1rem;font-weight:800;letter-spacing:0.05em">⚙ Dev Menu</h2>
+      <button onclick="closeDevPanel()"
+        style="background:#1e3a5f;border:none;color:#94a3b8;padding:0.4rem 0.9rem;border-radius:6px;cursor:pointer;font-size:0.8rem">
+        Close
+      </button>
+    </div>
+
+    <!-- Wordle word manager -->
+    <div style="background:#111e30;border-radius:10px;padding:1.25rem;margin-bottom:1.25rem">
+      <h3 style="color:#bfdbfe;font-size:0.9rem;font-weight:700;margin-bottom:0.75rem">📝 Wordle — Custom Words</h3>
+      <p style="color:#64748b;font-size:0.78rem;margin-bottom:1rem">Add 5-letter words to the Wordle word pool. They'll appear as possible daily answers.</p>
+
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem">
+        <input id="wordInput" maxlength="5" placeholder="5-letter word"
+          style="flex:1;padding:0.55rem 0.75rem;border-radius:6px;border:1px solid #1e3a5f;
+                 background:#0d1b2e;color:#e2e8f0;font-size:0.9rem;text-transform:uppercase;
+                 letter-spacing:0.1em;outline:none"
+          autocomplete="off" spellcheck="false">
+        <button onclick="addCustomWord()"
+          style="background:#16a34a;color:#fff;border:none;padding:0.55rem 1.1rem;
+                 border-radius:6px;font-weight:700;cursor:pointer;font-size:0.85rem">
+          Add
+        </button>
+      </div>
+      <div id="wordMsg" style="font-size:0.75rem;min-height:16px;margin-bottom:0.75rem;color:#f59e0b"></div>
+
+      <div id="customWordList" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem"></div>
+
+      <button onclick="clearCustomWords()"
+        style="background:transparent;border:1px solid #374151;color:#64748b;padding:0.35rem 0.8rem;
+               border-radius:6px;font-size:0.75rem;cursor:pointer">
+        Clear all custom words
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ── Dev access ────────────────────────────────────────────
+  const DEV_CODE = '4373723';
+
+  document.getElementById('devCodeInput').addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') return;
+    const val = this.value.trim();
+    if (val === DEV_CODE) {
+      document.getElementById('devMsg').textContent = '';
+      this.value = '';
+      openDevPanel();
+    } else {
+      this.value = '';
+      const msg = document.getElementById('devMsg');
+      msg.textContent = 'Incorrect — try again';
+      this.style.borderBottomColor = '#dc2626';
+      setTimeout(() => { msg.textContent = ''; this.style.borderBottomColor = '#2d4a6e'; }, 2000);
+    }
+  });
+
+  function openDevPanel() {
+    document.getElementById('devPanel').style.display = 'block';
+    document.getElementById('devPanel').scrollIntoView({ behavior: 'smooth' });
+    renderCustomWords();
+  }
+
+  function closeDevPanel() {
+    document.getElementById('devPanel').style.display = 'none';
+  }
+
+  // ── Custom Wordle words ───────────────────────────────────
+  const CUSTOM_KEY = 'hh2-wordle-custom';
+
+  function loadCustomWords() {
+    try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); } catch { return []; }
+  }
+
+  function saveCustomWords(arr) {
+    localStorage.setItem(CUSTOM_KEY, JSON.stringify(arr));
+  }
+
+  function addCustomWord() {
+    const input = document.getElementById('wordInput');
+    const word  = input.value.trim().toLowerCase();
+    const msg   = document.getElementById('wordMsg');
+
+    if (word.length !== 5) { msg.style.color='#dc2626'; msg.textContent = 'Word must be exactly 5 letters.'; return; }
+    if (!/^[a-z]+$/.test(word)) { msg.style.color='#dc2626'; msg.textContent = 'Letters only, no spaces or numbers.'; return; }
+
+    const list = loadCustomWords();
+    if (list.includes(word)) { msg.style.color='#f59e0b'; msg.textContent = `"${word.toUpperCase()}" is already in the list.`; return; }
+
+    list.push(word);
+    saveCustomWords(list);
+    input.value = '';
+    msg.style.color = '#22c55e';
+    msg.textContent = `"${word.toUpperCase()}" added!`;
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+    renderCustomWords();
+  }
+
+  function removeCustomWord(word) {
+    const list = loadCustomWords().filter(w => w !== word);
+    saveCustomWords(list);
+    renderCustomWords();
+  }
+
+  function clearCustomWords() {
+    if (!confirm('Remove all custom words from Wordle?')) return;
+    saveCustomWords([]);
+    renderCustomWords();
+  }
+
+  function renderCustomWords() {
+    const list = loadCustomWords();
+    const el   = document.getElementById('customWordList');
+    if (!list.length) {
+      el.innerHTML = '<span style="color:#334155;font-size:0.8rem;font-style:italic">No custom words yet.</span>';
+      return;
+    }
+    el.innerHTML = list.map(w => `
+      <span style="background:#1e3a5f;color:#bfdbfe;padding:0.3rem 0.65rem;border-radius:999px;
+                   font-size:0.8rem;font-weight:700;letter-spacing:0.08em;display:flex;align-items:center;gap:0.35rem">
+        ${w.toUpperCase()}
+        <button onclick="removeCustomWord('${w}')"
+          style="background:none;border:none;color:#64748b;cursor:pointer;font-size:0.9rem;
+                 line-height:1;padding:0;margin-left:2px" title="Remove">×</button>
+      </span>`).join('');
+  }
+
+  // Allow Enter to add word
+  document.getElementById('wordInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addCustomWord();
+  });
+</script>
+
 <script>
   // Mobile nav toggle
   const toggle = document.getElementById('navToggle');

@@ -405,6 +405,12 @@ const WORDS = [
   'wrote','wryly','yearn','yodel','yokel','yummy','zonal','zoned','zonk'
 ].filter((w, i, a) => w.length === 5 && a.indexOf(w) === i);
 
+// Merge in any custom words added via the dev menu
+const customWords = (() => {
+  try { return JSON.parse(localStorage.getItem('hh2-wordle-custom') || '[]'); } catch { return []; }
+})();
+customWords.forEach(w => { if (w.length === 5 && !WORDS.includes(w)) WORDS.push(w); });
+
 // ── State ────────────────────────────────────────────────
 const STATS_KEY  = 'hh2-wordle-stats';
 const STATE_KEY  = 'hh2-wordle-state';
